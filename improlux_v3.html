@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMPROLUX v3.0</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0d0f0e;
+    --surface: #141716;
+    --surface2: #1c1f1d;
+    --border: #2a2e2c;
+    --accent: #b8f04a;
+    --accent2: #4af0a0;
+    --text: #e8ede9;
+    --muted: #6b766d;
+    --danger: #f04a4a;
+    --warn: #f0c44a;
+    --info: #4ab4f0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
+  .logo { font-family: 'Instrument Serif', serif; font-size: 20px; letter-spacing: 0.04em; color: var(--accent); }
+  .logo span { color: var(--muted); font-style: italic; font-size: 13px; margin-left: 8px; font-family: 'DM Sans', sans-serif; }
+  .header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .stat-pill { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .stat-pill strong { color: var(--accent); }
+  .header-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); font-size: 11px; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-family: 'DM Mono', monospace; transition: all 0.15s; white-space: nowrap; }
+  .header-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* TABS */
+  .tabs { display: flex; gap: 4px; padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); font-size: 11px; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-family: 'DM Mono', monospace; white-space: nowrap; transition: all 0.15s; }
+  .tab:hover { border-color: var(--accent); color: var(--accent); }
+  .tab.active { background: rgba(184,240,74,0.1); border-color: var(--accent); color: var(--accent); }
+
+  /* QUICK ACTIONS */
+  .quick-actions { display: flex; gap: 6px; padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; overflow-x: auto; scrollbar-width: none; }
+  .quick-actions::-webkit-scrollbar { display: none; }
+  .chip { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); font-size: 11px; padding: 5px 12px; border-radius: 20px; cursor: pointer; white-space: nowrap; transition: all 0.15s; font-family: 'DM Mono', monospace; }
+  .chip:hover { border-color: var(--accent); color: var(--accent); background: rgba(184,240,74,0.06); }
+
+  /* CHAT */
+  .chat-area { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .msg { display: flex; gap: 10px; max-width: 860px; animation: fadeUp 0.2s ease; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .avatar { width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; font-family: 'DM Mono', monospace; font-weight: 500; }
+  .msg.user .avatar { background: var(--accent); color: var(--bg); }
+  .msg.bot .avatar { background: var(--surface2); border: 1px solid var(--border); color: var(--accent); }
+  .bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; font-size: 13px; line-height: 1.65; max-width: calc(100% - 40px); }
+  .msg.user .bubble { background: var(--surface2); }
+
+  /* BUBBLE CONTENT */
+  .bubble table { width:100%; border-collapse:collapse; margin:8px 0; font-family:'DM Mono',monospace; font-size:11px; }
+  .bubble table th { text-align:left; padding:5px 8px; color:var(--muted); border-bottom:1px solid var(--border); font-weight:500; text-transform:uppercase; letter-spacing:0.06em; font-size:10px; }
+  .bubble table td { padding:6px 8px; border-bottom:1px solid rgba(42,46,44,0.4); }
+  .bubble table tr:last-child td { border-bottom:none; }
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; margin:8px 0; }
+  .kpi { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .kpi-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:3px; }
+  .kpi-value { font-family:'DM Mono',monospace; font-size:16px; color:var(--accent); font-weight:500; }
+  .kpi-sub { font-size:10px; color:var(--muted); margin-top:2px; }
+  .tag { display:inline-block; padding:2px 7px; border-radius:4px; font-size:10px; font-family:'DM Mono',monospace; font-weight:500; }
+  .tag.green { background:rgba(74,240,160,0.12); color:var(--accent2); border:1px solid rgba(74,240,160,0.25); }
+  .tag.red { background:rgba(240,74,74,0.12); color:var(--danger); border:1px solid rgba(240,74,74,0.25); }
+  .tag.yellow { background:rgba(240,196,74,0.12); color:var(--warn); border:1px solid rgba(240,196,74,0.25); }
+  .tag.blue { background:rgba(74,180,240,0.12); color:var(--info); border:1px solid rgba(74,180,240,0.25); }
+  .tag.accent { background:rgba(184,240,74,0.12); color:var(--accent); border:1px solid rgba(184,240,74,0.25); }
+  .num-pos { color:var(--accent2); font-family:'DM Mono',monospace; }
+  .num-neg { color:var(--danger); font-family:'DM Mono',monospace; }
+  .num { font-family:'DM Mono',monospace; }
+  .bar-chart { margin:8px 0; }
+  .bar-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; font-size:11px; }
+  .bar-label { width:180px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
+  .bar-track { flex:1; height:5px; background:var(--surface2); border-radius:3px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:3px; background:var(--accent); transition:width 0.4s ease; }
+  .bar-val { width:70px; text-align:right; color:var(--text); font-family:'DM Mono',monospace; flex-shrink:0; }
+
+  /* FEEDBACK */
+  .feedback-bar { display:flex; align-items:center; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border); flex-wrap:wrap; }
+  .feedback-label { font-size:10px; color:var(--muted); font-family:'DM Mono',monospace; }
+  .fb-btn { background:var(--surface2); border:1px solid var(--border); color:var(--muted); font-size:10px; padding:3px 8px; border-radius:12px; cursor:pointer; font-family:'DM Mono',monospace; transition:all 0.15s; }
+  .fb-btn.ok:hover { border-color:var(--accent2); color:var(--accent2); }
+  .fb-btn.bad:hover { border-color:var(--warn); color:var(--warn); }
+  .fb-done { font-size:10px; color:var(--muted); font-family:'DM Mono',monospace; font-style:italic; }
+  .correction-box { margin-top:8px; display:flex; flex-direction:column; gap:5px; }
+  .correction-box textarea { background:var(--surface2); border:1px solid var(--accent); color:var(--text); font-family:'DM Mono',monospace; font-size:11px; padding:7px 9px; border-radius:6px; resize:vertical; min-height:55px; outline:none; }
+  .save-btn { align-self:flex-start; background:var(--accent); color:var(--bg); border:none; font-size:11px; padding:5px 12px; border-radius:6px; cursor:pointer; font-family:'DM Mono',monospace; font-weight:500; }
+
+  /* THINKING */
+  .thinking { display:flex; gap:4px; padding:3px 0; }
+  .thinking span { width:5px; height:5px; background:var(--accent); border-radius:50%; animation:bounce 1.2s infinite; opacity:0.6; }
+  .thinking span:nth-child(2) { animation-delay:0.2s; }
+  .thinking span:nth-child(3) { animation-delay:0.4s; }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0);} 30%{transform:translateY(-5px);} }
+
+  /* INPUT */
+  .input-row { display:flex; gap:8px; padding:12px 20px; border-top:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+  input[type=text] { flex:1; background:var(--surface2); border:1px solid var(--border); color:var(--text); font-size:13px; font-family:'DM Sans',sans-serif; padding:9px 14px; border-radius:8px; outline:none; transition:border-color 0.15s; }
+  input[type=text]:focus { border-color:var(--accent); }
+  input[type=text]::placeholder { color:var(--muted); }
+  button.send { background:var(--accent); color:var(--bg); border:none; border-radius:8px; padding:9px 20px; font-size:13px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; transition:opacity 0.15s; }
+  button.send:hover { opacity:0.85; }
+  button.send:disabled { opacity:0.4; cursor:not-allowed; }
+
+  /* SIDE PANELS */
+  .side-panel { position:fixed; top:0; right:-360px; width:340px; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:200; display:flex; flex-direction:column; transition:right 0.3s ease; box-shadow:-8px 0 32px rgba(0,0,0,0.4); }
+  .side-panel.open { right:0; }
+  .side-panel-header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .side-panel-header h3 { font-size:12px; color:var(--accent); font-family:'DM Mono',monospace; text-transform:uppercase; letter-spacing:0.08em; }
+  .side-panel-close { background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer; padding:2px 6px; border-radius:4px; transition:color 0.15s; }
+  .side-panel-close:hover { color:var(--text); }
+  .side-panel-body { flex:1; overflow-y:auto; padding:12px 14px; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+  .side-panel-footer { padding:10px 14px; border-top:1px solid var(--border); display:flex; gap:6px; flex-wrap:wrap; flex-shrink:0; }
+  .panel-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:199; display:none; }
+  .panel-overlay.open { display:block; }
+  .panel-btn { flex:1; background:var(--surface2); border:1px solid var(--border); color:var(--muted); font-size:11px; padding:6px 8px; border-radius:6px; cursor:pointer; font-family:'DM Mono',monospace; text-align:center; transition:all 0.15s; }
+  .panel-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .panel-btn.danger:hover { border-color:var(--danger); color:var(--danger); }
+  .empty-state { font-size:11px; color:var(--muted); font-family:'DM Mono',monospace; font-style:italic; text-align:center; padding:20px 0; }
+  .train-item { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:6px; font-size:11px; font-family:'DM Mono',monospace; position:relative; }
+  .train-item .ti-q { color:var(--muted); margin-bottom:3px; }
+  .train-item .ti-a { color:var(--accent2); }
+  .train-item .ti-del { position:absolute; top:6px; right:8px; color:var(--danger); cursor:pointer; font-size:13px; opacity:0.5; }
+  .train-item .ti-del:hover { opacity:1; }
+  .fav-item { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:9px 11px; margin-bottom:6px; cursor:pointer; font-size:11px; font-family:'DM Mono',monospace; color:var(--text); position:relative; transition:border-color 0.15s; padding-right:30px; }
+  .fav-item:hover { border-color:var(--accent); color:var(--accent); }
+  .fav-item .fav-del { position:absolute; right:8px; top:50%; transform:translateY(-50%); color:var(--danger); opacity:0.4; font-size:13px; cursor:pointer; }
+  .fav-item .fav-del:hover { opacity:1; }
+  .fav-add-row { display:flex; gap:5px; margin-top:8px; }
+  .fav-add-row input { flex:1; background:var(--surface2); border:1px solid var(--border); color:var(--text); font-size:11px; font-family:'DM Mono',monospace; padding:6px 9px; border-radius:6px; outline:none; }
+  .fav-add-row input:focus { border-color:var(--accent); }
+  .fav-add-btn { background:var(--accent); color:var(--bg); border:none; font-size:11px; padding:6px 10px; border-radius:6px; cursor:pointer; font-family:'DM Mono',monospace; font-weight:500; white-space:nowrap; }
+  .hist-session { margin-bottom:10px; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .hist-session-header { background:var(--surface2); padding:7px 10px; font-size:10px; color:var(--muted); font-family:'DM Mono',monospace; display:flex; justify-content:space-between; align-items:center; }
+  .hist-session-header .del-session { color:var(--danger); cursor:pointer; opacity:0.5; }
+  .hist-session-header .del-session:hover { opacity:1; }
+  .hist-msg { padding:6px 10px; font-size:11px; font-family:'DM Mono',monospace; border-top:1px solid rgba(42,46,44,0.5); }
+  .hist-msg.u { color:var(--accent); }
+  .hist-msg.b { color:var(--muted); }
+  .hist-restore-btn { display:block; width:100%; background:transparent; border:none; border-top:1px solid var(--border); color:var(--muted); font-size:10px; padding:5px; cursor:pointer; font-family:'DM Mono',monospace; transition:all 0.15s; }
+  .hist-restore-btn:hover { color:var(--accent); background:rgba(184,240,74,0.05); }
+
+  /* REGISTRO RAPIDO */
+  .reg-panel { background:var(--surface2); border:1px solid var(--border); border-radius:10px; margin:8px 20px; padding:14px 16px; display:none; }
+  .reg-panel.open { display:block; }
+  .reg-panel h4 { font-size:11px; color:var(--accent); font-family:'DM Mono',monospace; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px; }
+  .reg-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .reg-field { display:flex; flex-direction:column; gap:3px; }
+  .reg-field label { font-size:10px; color:var(--muted); font-family:'DM Mono',monospace; text-transform:uppercase; }
+  .reg-field input, .reg-field select { background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:12px; font-family:'DM Mono',monospace; padding:6px 9px; border-radius:6px; outline:none; }
+  .reg-field input:focus, .reg-field select:focus { border-color:var(--accent); }
+  .reg-actions { display:flex; gap:6px; margin-top:10px; }
+  .reg-submit { background:var(--accent); color:var(--bg); border:none; font-size:12px; padding:7px 16px; border-radius:6px; cursor:pointer; font-family:'DM Mono',monospace; font-weight:500; }
+  .reg-cancel { background:transparent; border:1px solid var(--border); color:var(--muted); font-size:12px; padding:7px 12px; border-radius:6px; cursor:pointer; font-family:'DM Mono',monospace; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">IMPROLUX <span>v3.0 — Sistema Financiero</span></div>
+  <div class="header-right">
+    <div class="stat-pill" id="sheet-status"><span style="color:var(--warn)">● Cargando...</span></div>
+    <div class="stat-pill" id="tc-indicator"><span style="color:var(--muted)">💱 TC...</span></div>
+    <button class="header-btn" onclick="openPanel('trainPanel')">🧠 <span id="train-count">0</span></button>
+    <button class="header-btn" onclick="openPanel('favPanel')">📌 Favoritos</button>
+    <button class="header-btn" onclick="openPanel('histPanel')">🗂️ Historial</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="setTab('general')">📊 General</div>
+  <div class="tab" onclick="setTab('transacciones')">💵 Movimientos</div>
+  <div class="tab" onclick="setTab('cuentas')">🔄 Ctas. Corrientes</div>
+  <div class="tab" onclick="setTab('cheques')">🏦 Cheques</div>
+  <div class="tab" onclick="setTab('inversores')">👥 Inversores</div>
+</div>
+
+<div class="quick-actions" id="quickActions">
+  <div class="chip" onclick="loadAll().then(()=>addMsg('bot','✅ Datos actualizados',false))">🔄 Actualizar</div>
+  <div class="chip" onclick="ask('¿Cuál es el resumen financiero del mes actual?')">📊 Resumen mes</div>
+  <div class="chip" onclick="ask('Mostrame todas las cuentas corrientes con saldo')">🔄 Cuentas corrientes</div>
+  <div class="chip" onclick="ask('¿Qué cheques están pendientes de cobro o pago?')">🏦 Cheques pendientes</div>
+  <div class="chip" onclick="ask('¿Cuál es la deuda total con inversores?')">👥 Deuda inversores</div>
+  <div class="chip" onclick="ask('Mostrame los últimos 10 movimientos')">📋 Últimos movimientos</div>
+  <div class="chip" onclick="ask('¿Cuánto gastamos en alimentación este ciclo?')">🌾 Alimentación</div>
+  <div class="chip" onclick="ask('Comparar egresos por categoría 2025/26')">📈 Por categoría</div>
+</div>
+
+<!-- OVERLAY -->
+<div class="panel-overlay" id="panelOverlay" onclick="closeAllPanels()"></div>
+
+<!-- PANEL ENTRENAMIENTO -->
+<div class="side-panel" id="trainPanel">
+  <div class="side-panel-header">
+    <h3>🧠 Memoria de entrenamiento</h3>
+    <button class="side-panel-close" onclick="closeAllPanels()">✕</button>
+  </div>
+  <div class="side-panel-body" id="trainList"></div>
+  <div class="side-panel-footer">
+    <button class="panel-btn" onclick="exportTraining()">📥 Exportar</button>
+    <button class="panel-btn" onclick="document.getElementById('importFile').click()">📤 Importar</button>
+    <button class="panel-btn danger" onclick="clearTraining()">🗑️ Limpiar</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importTraining(event)">
+  </div>
+</div>
+
+<!-- PANEL FAVORITOS -->
+<div class="side-panel" id="favPanel">
+  <div class="side-panel-header">
+    <h3>📌 Preguntas frecuentes</h3>
+    <button class="side-panel-close" onclick="closeAllPanels()">✕</button>
+  </div>
+  <div class="side-panel-body" id="favList"></div>
+  <div class="side-panel-footer" style="flex-direction:column">
+    <div class="fav-add-row">
+      <input type="text" id="favInput" placeholder="Nueva pregunta frecuente..." onkeydown="if(event.key==='Enter')addFav()">
+      <button class="fav-add-btn" onclick="addFav()">+ Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL HISTORIAL -->
+<div class="side-panel" id="histPanel">
+  <div class="side-panel-header">
+    <h3>🗂️ Historial de conversaciones</h3>
+    <button class="side-panel-close" onclick="closeAllPanels()">✕</button>
+  </div>
+  <div class="side-panel-body" id="histList"></div>
+  <div class="side-panel-footer">
+    <button class="panel-btn danger" onclick="clearHistory()">🗑️ Borrar historial</button>
+  </div>
+</div>
+
+<div class="chat-area" id="chat"></div>
+
+<div class="input-row">
+  <input type="text" id="inp" placeholder="Consultá o registrá: 'nuevo proveedor...', 'nuevo inversor...', 'gasté $50 en nafta'..." />
+  <button class="send" id="sendBtn" onclick="sendMsg()">Enviar</button>
+</div>
+
+<script>
+// ==================== SHEETS CONFIG ====================
+const SHEET_ID = '1Ni7nWA4hE_A3EfYnM2XWAkBWjevIkwC7nvT7YzNeNmk';
+const BASE_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?single=true&output=csv`;
+const URLS = {
+  transacciones:  BASE_URL + '&gid=0',
+  cuentas:        BASE_URL + '&gid=1626501829',
+  cheques:        BASE_URL + '&gid=1641645890',
+  inversores:     BASE_URL + '&gid=615410361'
+};
+
+// ==================== TIPO DE CAMBIO ====================
+let tcHoy = null, tcFecha = null;
+
+async function fetchTC() {
+  try {
+    const today = new Date().toISOString().slice(0,10);
+    const res = await fetch(`https://cotizaciones-brou.fly.dev/rates?date=${today}`);
+    const data = await res.json();
+    if (data?.rates?.USD?.sell) { tcHoy = data.rates.USD.sell; tcFecha = today; updateTCIndicator(); return; }
+  } catch(e) {}
+  try {
+    const ayer = new Date(Date.now()-86400000).toISOString().slice(0,10);
+    const res2 = await fetch(`https://cotizaciones-brou.fly.dev/rates?date=${ayer}`);
+    const data2 = await res2.json();
+    if (data2?.rates?.USD?.sell) { tcHoy = data2.rates.USD.sell; tcFecha = ayer; updateTCIndicator(); }
+  } catch(e2) {}
+  updateTCIndicator();
+}
+
+function updateTCIndicator() {
+  const el = document.getElementById('tc-indicator');
+  if (!el) return;
+  el.innerHTML = tcHoy
+    ? `<span style="color:var(--accent2)">💱 TC $${tcHoy.toFixed(2)}</span>`
+    : `<span style="color:var(--warn)">💱 Sin TC</span>`;
+}
+
+function detectarPesos(txt) {
+  const patterns = [/(\d[\d.,]*)\s*(?:pesos?|peso|uy|uyu|\$uy)/i, /(?:pesos?|uyu)\s*[:\s]*(\d[\d.,]*)/i];
+  for (const p of patterns) {
+    const m = txt.match(p);
+    if (m) { const n = parseFloat(m[1].replace(/\./g,'').replace(',','.')); if (!isNaN(n) && n>0) return n; }
+  }
+  return null;
+}
+
+// ==================== DATOS SHEETS ====================
+let sheetData = { transacciones: [], cuentas: [], cheques: [], inversores: [] };
+let loadStatus = 'idle';
+
+function parseCSV(csv) {
+  const rows = csv.trim().split('\n');
+  const headers = rows[0].split(',').map(h => h.replace(/"/g,'').trim().toLowerCase());
+  return rows.slice(1).map(row => {
+    const cols = row.split(',').map(v => v.replace(/"/g,'').trim());
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = cols[i] || '');
+    return obj;
+  }).filter(r => Object.values(r).some(v => v));
+}
+
+async function loadSheet(key) {
+  try {
+    const res = await fetch(URLS[key] + '&t=' + Date.now());
+    const csv = await res.text();
+    sheetData[key] = parseCSV(csv);
+  } catch(e) { sheetData[key] = []; }
+}
+
+async function loadAll() {
+  loadStatus = 'loading';
+  updateSheetStatus();
+  await Promise.all(Object.keys(URLS).map(k => loadSheet(k)));
+  loadStatus = 'ok';
+  updateSheetStatus();
+}
+
+function updateSheetStatus() {
+  const el = document.getElementById('sheet-status');
+  if (!el) return;
+  if (loadStatus === 'loading') {
+    el.innerHTML = '<span style="color:var(--warn)">● Actualizando...</span>';
+  } else if (loadStatus === 'ok') {
+    const t = new Date().toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'});
+    el.innerHTML = `<span style="color:var(--accent2)">● ${sheetData.transacciones.length} mov · ${t}</span>`;
+  } else {
+    el.innerHTML = '<span style="color:var(--danger)">● Error conexión</span>';
+  }
+}
+
+// Auto-refresh cada 2 min
+loadAll();
+setInterval(loadAll, 120000);
+
+// ==================== TABS ====================
+let currentTab = 'general';
+const TAB_CHIPS = {
+  general: ['📊 Resumen mes','💵 Últimos movimientos','🔄 Cuentas corrientes','🏦 Cheques pendientes','👥 Deuda inversores','📈 Por categoría'],
+  transacciones: ['Últimos 10 movimientos','Egresos del mes','Ingresos del mes','¿Cuánto gasté en combustible?','Movimientos por categoría','Gastos de alimentación'],
+  cuentas: ['Mostrame todas las cuentas corrientes','¿Quién tiene mayor saldo?','Pagos pendientes a proveedores','Nuevo proveedor [nombre] [categoría]','Registrar pago a [proveedor] $[monto]'],
+  cheques: ['Cheques pendientes de cobro','Cheques pendientes de pago','Vencimientos próximos 30 días','Nuevo cheque emitido a [proveedor] $[monto]','Nuevo cheque recibido de [quien] $[monto]'],
+  inversores: ['Estado de todos los inversores','Deuda total con inversores','Nuevo inversor [nombre] $[capital] tasa [%]','Calcular intereses acumulados','¿Cuándo vencen los plazos?']
+};
+
+function setTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['general','transacciones','cuentas','cheques','inversores'][i] === tab);
+  });
+  const qa = document.getElementById('quickActions');
+  qa.innerHTML = TAB_CHIPS[tab].map(c =>
+    `<div class="chip" onclick="ask('${c.replace(/'/g,"\\'")}')">${c}</div>`
+  ).join('');
+}
+
+// ==================== KEYS ====================
+const TRAIN_KEY = 'improlux_v3_training';
+const FAV_KEY   = 'improlux_v3_favs';
+const HIST_KEY  = 'improlux_v3_history';
+
+// ==================== PANELES ====================
+function openPanel(id) {
+  closeAllPanels();
+  document.getElementById(id).classList.add('open');
+  document.getElementById('panelOverlay').classList.add('open');
+  if (id==='trainPanel') renderTrainPanel();
+  if (id==='favPanel')   renderFavPanel();
+  if (id==='histPanel')  renderHistPanel();
+}
+function closeAllPanels() {
+  ['trainPanel','favPanel','histPanel'].forEach(id => document.getElementById(id).classList.remove('open'));
+  document.getElementById('panelOverlay').classList.remove('open');
+}
+
+// ==================== ENTRENAMIENTO ====================
+function getTraining() { try { return JSON.parse(localStorage.getItem(TRAIN_KEY)||'[]'); } catch(e) { return []; } }
+function saveTraining(q, a) {
+  const ex = getTraining();
+  if (ex.some(e => e.q===q)) return;
+  ex.unshift({q, a, ts: Date.now()});
+  if (ex.length>60) ex.length=60;
+  localStorage.setItem(TRAIN_KEY, JSON.stringify(ex));
+  updateTrainCount();
+}
+function deleteTraining(ts) {
+  localStorage.setItem(TRAIN_KEY, JSON.stringify(getTraining().filter(e=>e.ts!==ts)));
+  updateTrainCount(); renderTrainPanel();
+}
+function clearTraining() {
+  if (!confirm('¿Borrar todos los ejemplos?')) return;
+  localStorage.removeItem(TRAIN_KEY); updateTrainCount(); renderTrainPanel();
+}
+function updateTrainCount() {
+  const el = document.getElementById('train-count');
+  if (el) el.textContent = getTraining().length;
+}
+function exportTraining() {
+  const d = getTraining();
+  if (!d.length) { alert('No hay ejemplos.'); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}));
+  a.download = 'improlux_v3_training_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+}
+function importTraining(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const imp = JSON.parse(ev.target.result);
+      if (!Array.isArray(imp)) throw new Error();
+      const merged = [...imp,...getTraining()].filter((x,i,a)=>a.findIndex(y=>y.q===x.q)===i).slice(0,60);
+      localStorage.setItem(TRAIN_KEY, JSON.stringify(merged));
+      updateTrainCount(); renderTrainPanel(); alert(`✅ ${imp.length} ejemplos importados.`);
+    } catch { alert('❌ Archivo inválido.'); }
+  };
+  r.readAsText(f); e.target.value='';
+}
+function renderTrainPanel() {
+  const el = document.getElementById('trainList');
+  const ex = getTraining();
+  if (!ex.length) { el.innerHTML='<div class="empty-state">Sin ejemplos aún.<br>Confirmá respuestas con 👍 para entrenar.</div>'; return; }
+  el.innerHTML = ex.slice(0,25).map(e=>`
+    <div class="train-item">
+      <div class="ti-del" onclick="deleteTraining(${e.ts})">✕</div>
+      <div class="ti-q">▸ ${e.q.substring(0,55)}${e.q.length>55?'…':''}</div>
+      <div class="ti-a">↳ ${e.a.substring(0,85)}${e.a.length>85?'…':''}</div>
+    </div>`).join('');
+  if (ex.length>25) el.innerHTML+=`<div class="empty-state">...y ${ex.length-25} más.</div>`;
+}
+function buildFewShot() {
+  const ex = getTraining().slice(0,15);
+  if (!ex.length) return '';
+  return `\nEJEMPLOS DE ENTRENAMIENTO:\n${ex.map((e,i)=>`[${i+1}] "${e.q}" → "${e.a}"`).join('\n')}\n`;
+}
+
+// ==================== FAVORITOS ====================
+const DEFAULT_FAVS = [
+  '¿Cuál es el resumen del mes actual?',
+  'Mostrame todas las cuentas corrientes',
+  '¿Qué cheques están pendientes?',
+  '¿Cuál es la deuda total con inversores?',
+  'Últimos 10 movimientos',
+  'Egresos por categoría este ciclo',
+];
+function getFavs() { try { return JSON.parse(localStorage.getItem(FAV_KEY)||'null')||DEFAULT_FAVS.slice(); } catch { return DEFAULT_FAVS.slice(); } }
+function addFav() {
+  const inp = document.getElementById('favInput');
+  const txt = inp.value.trim(); if (!txt) return;
+  const favs = getFavs();
+  if (!favs.includes(txt)) { favs.unshift(txt); if (favs.length>30) favs.length=30; localStorage.setItem(FAV_KEY,JSON.stringify(favs)); }
+  inp.value=''; renderFavPanel();
+}
+function deleteFav(i) { const f=getFavs(); f.splice(i,1); localStorage.setItem(FAV_KEY,JSON.stringify(f)); renderFavPanel(); }
+function useFav(txt) { closeAllPanels(); document.getElementById('inp').value=txt; sendMsg(); }
+function renderFavPanel() {
+  const el = document.getElementById('favList');
+  const favs = getFavs();
+  if (!favs.length) { el.innerHTML='<div class="empty-state">Sin favoritos.</div>'; return; }
+  el.innerHTML = favs.map((f,i)=>`
+    <div class="fav-item" onclick="useFav('${f.replace(/'/g,"\\'")}')">
+      ${f}<span class="fav-del" onclick="event.stopPropagation();deleteFav(${i})">✕</span>
+    </div>`).join('');
+}
+
+// ==================== HISTORIAL ====================
+function getSessions() { try { return JSON.parse(localStorage.getItem(HIST_KEY)||'[]'); } catch { return []; } }
+function saveSession(msgs) {
+  if (msgs.length<2) return;
+  const s = getSessions();
+  s.unshift({id:Date.now(), fecha:new Date().toLocaleString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}), msgs:msgs.slice(-8)});
+  if (s.length>20) s.length=20;
+  localStorage.setItem(HIST_KEY,JSON.stringify(s));
+}
+function deleteSession(id) { localStorage.setItem(HIST_KEY,JSON.stringify(getSessions().filter(s=>s.id!==id))); renderHistPanel(); }
+function clearHistory() { if (!confirm('¿Borrar todo el historial?')) return; localStorage.removeItem(HIST_KEY); renderHistPanel(); }
+function restoreSession(id) {
+  const s = getSessions().find(x=>x.id===id); if (!s) return;
+  closeAllPanels(); chat.innerHTML='';
+  s.msgs.forEach(m=>addMsg(m.role, m.html||m.content||''));
+  addMsg('bot','<em style="color:var(--muted);font-size:11px">— Sesión restaurada —</em>');
+}
+function renderHistPanel() {
+  const el = document.getElementById('histList');
+  const s = getSessions();
+  if (!s.length) { el.innerHTML='<div class="empty-state">Sin historial aún.</div>'; return; }
+  el.innerHTML = s.map(x=>`
+    <div class="hist-session">
+      <div class="hist-session-header"><span>${x.fecha}</span><span class="del-session" onclick="deleteSession(${x.id})">✕</span></div>
+      ${x.msgs.slice(0,3).map(m=>`<div class="hist-msg ${m.role==='user'?'u':'b'}">${m.role==='user'?'▸':'↳'} ${(m.content||'').substring(0,55)}…</div>`).join('')}
+      <button class="hist-restore-btn" onclick="restoreSession(${x.id})">↩ Restaurar</button>
+    </div>`).join('');
+}
+window.addEventListener('beforeunload', () => { if (sessionMsgs.length>2) saveSession(sessionMsgs); });
+
+// ==================== CHAT ENGINE ====================
+const chat = document.getElementById('chat');
+const inp  = document.getElementById('inp');
+const sendBtn = document.getElementById('sendBtn');
+let conversationHistory = [];
+let sessionMsgs = [];
+let lastExchange = {q:'', a:''};
+const fmt = n => '$'+parseFloat(n).toLocaleString('es-UY',{minimumFractionDigits:0,maximumFractionDigits:0});
+
+function addMsg(role, html, withFeedback=false) {
+  const div = document.createElement('div');
+  div.className = 'msg '+role;
+  let fb = '';
+  if (withFeedback && role==='bot') {
+    const id = 'fb_'+Date.now();
+    fb = `<div class="feedback-bar" id="${id}">
+      <span class="feedback-label">¿Respondí bien?</span>
+      <button class="fb-btn ok" onclick="fbOk('${id}')">👍 Sí</button>
+      <button class="fb-btn bad" onclick="fbCorregir('${id}')">✏️ Corregir</button>
+    </div>`;
+  }
+  div.innerHTML = `<div class="avatar">${role==='user'?'V':'IA'}</div><div class="bubble">${html}${fb}</div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  sessionMsgs.push({role, html, content: html.replace(/<[^>]+>/g,' ').trim().substring(0,150)});
+  return div;
+}
+
+function fbOk(id) {
+  const bar = document.getElementById(id); if (!bar) return;
+  if (lastExchange.q && lastExchange.a) saveTraining(lastExchange.q, lastExchange.a.replace(/<[^>]+>/g,' ').trim().substring(0,200));
+  bar.innerHTML='<span class="fb-done">✓ Guardado como ejemplo</span>';
+}
+function fbCorregir(id) {
+  const bar = document.getElementById(id); if (!bar) return;
+  bar.innerHTML=`<div class="correction-box">
+    <span class="feedback-label" style="color:var(--warn)">¿Cómo debería haber respondido?</span>
+    <textarea id="ct_${id}" placeholder="Describí la respuesta correcta..."></textarea>
+    <button class="save-btn" onclick="fbSave('${id}')">Guardar</button>
+  </div>`;
+  bar.parentElement.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function fbSave(id) {
+  const txt = document.getElementById('ct_'+id); if (!txt||!txt.value.trim()) return;
+  if (lastExchange.q) saveTraining(lastExchange.q, txt.value.trim());
+  document.getElementById(id).innerHTML='<span class="fb-done">✓ Corrección guardada. El bot aprendió.</span>';
+}
+function showThinking() { return addMsg('bot','<div class="thinking"><span></span><span></span><span></span></div>'); }
+
+// ==================== DETECTAR INTENCIÓN DE REGISTRO ====================
+function detectRegistro(texto) {
+  const t = texto.toLowerCase();
+  // Nuevo proveedor
+  if (t.includes('nuevo proveedor') || t.includes('agregar proveedor')) return 'nuevo_proveedor';
+  // Nuevo inversor
+  if (t.includes('nuevo inversor') || t.includes('agregar inversor')) return 'nuevo_inversor';
+  // Nuevo cheque
+  if (t.includes('nuevo cheque') || t.includes('cheque emitido') || t.includes('cheque recibido')) return 'nuevo_cheque';
+  // Pago a proveedor/cuenta corriente
+  if ((t.includes('pag') || t.includes('abono') || t.includes('cancel')) && sheetData.cuentas.some(c => c.proveedor && t.includes(c.proveedor.toLowerCase()))) return 'pago_proveedor';
+  return null;
+}
+
+// ==================== SEND ====================
+async function sendMsg() {
+  const q = inp.value.trim(); if (!q) return;
+  inp.value=''; sendBtn.disabled=true;
+  addMsg('user', q);
+  const thinking = showThinking();
+
+  // Detectar pesos
+  let qFinal = q, convNote = '';
+  const pesos = detectarPesos(q);
+  if (pesos !== null) {
+    if (!tcHoy) await fetchTC();
+    if (tcHoy) {
+      const usd = pesos/tcHoy;
+      convNote = `\n[CONVERSIÓN: $${pesos.toLocaleString('es-UY')} pesos = USD ${usd.toFixed(2)} (TC BROU ${tcHoy.toFixed(2)}). Trabajar en dólares y mencionar la conversión.]`;
+      qFinal = q + convNote;
+    }
+  }
+
+  // Contexto de datos
+  const ctx = {
+    transacciones: sheetData.transacciones.slice(-100),
+    cuentas: sheetData.cuentas,
+    cheques: sheetData.cheques,
+    inversores: sheetData.inversores,
+    tc: tcHoy ? `${tcHoy.toFixed(2)} UYU/USD (${tcFecha})` : 'No disponible',
+    tab_activo: currentTab
+  };
+
+  // Resumen rápido para el prompt
+  const totalMovimientos = sheetData.transacciones.length;
+  const cuentasConSaldo = sheetData.cuentas.filter(c => parseFloat(c.saldo||0) !== 0);
+  const chequesPendientes = sheetData.cheques.filter(c => (c.estado||'').toLowerCase() !== 'pago' && (c.estado||'').toLowerCase() !== 'cobrado');
+  const inversoresActivos = sheetData.inversores.filter(i => (i.estado||'').toLowerCase() !== 'cancelado');
+
+  const systemPrompt = `Sos el asistente financiero de IMPROLUX v3.0, empresa ganadera uruguaya.
+MONEDA DEL SISTEMA: Todo en DÓLARES AMERICANOS (USD). Si hay montos en pesos, convertir con TC BROU y aclarar la conversión.
+TC BROU HOY: ${ctx.tc}
+
+MÓDULOS DEL SISTEMA:
+1. MOVIMIENTOS CONTADO — ingresos y egresos en efectivo
+2. CUENTAS CORRIENTES — saldo por proveedor, pagos parciales
+3. CHEQUES — emitidos y recibidos, con vencimiento
+4. INVERSORES — capital, tasa anual, deuda acumulada
+5. CONVERSIÓN — pesos uruguayos a dólares automático
+
+DATOS ACTUALES:
+TRANSACCIONES (últimas 100 de ${totalMovimientos} totales): ${JSON.stringify(ctx.transacciones)}
+CUENTAS CORRIENTES (${sheetData.cuentas.length} proveedores, ${cuentasConSaldo.length} con saldo): ${JSON.stringify(ctx.cuentas)}
+CHEQUES (${chequesPendientes.length} pendientes de ${sheetData.cheques.length} totales): ${JSON.stringify(ctx.cheques)}
+INVERSORES (${inversoresActivos.length} activos): ${JSON.stringify(ctx.inversores)}
+
+CATEGORÍAS DE GASTO: ALQUILER, ALIMENTACION RECRIA, INSUMOS VETERINARIOS, TRABAJOS VETERINARIOS, COMBUSTIBLE CAMPO, COMBUSTIBLE VIATICOS, SUELDO JORNAL, SUELDO ENCARGADO, VERDEOS Y PASTURAS, TERMINACION, COMPRA GANADO, ESTRUCTURA GANADERA, MANTENIMIENTO CAMPO, GASTOS VENTAS GANADERAS, INVERSION MAQUINARIA, BPS, GASTOS ADM, OTROS
+
+REGLAS CRÍTICAS:
+- Si mencionan un nombre que coincide con un proveedor en Cuentas Corrientes → es pago a cuenta corriente, NO sueldo
+- "pago a [proveedor]" → registrar como pago en cuenta corriente de ese proveedor
+- "nuevo proveedor [nombre]" → confirmar creación y datos necesarios
+- "nuevo inversor [nombre] [capital] tasa [%]" → confirmar y calcular deuda proyectada
+- "nuevo cheque emitido/recibido" → solicitar datos necesarios
+- Conversión pesos: siempre mostrar "X pesos = $Y USD (TC Z)"
+- Respondé en español rioplatense
+- Usá HTML: table, kpi-grid, bar-chart, tag (green/red/yellow/blue/accent)
+- Números siempre en USD con $
+- Máximo 400 palabras
+
+${buildFewShot()}`;
+
+  conversationHistory.push({role:'user', content: qFinal});
+  if (conversationHistory.length>12) conversationHistory = conversationHistory.slice(-12);
+
+  try {
+    const res = await fetch('https://cold-wave-6cc6.jjdastolfo.workers.dev/', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:1200,
+        system: systemPrompt,
+        messages: conversationHistory
+      })
+    });
+    const data = await res.json();
+    const reply = data.content?.map(b=>b.text||'').join('') || 'Sin respuesta';
+    conversationHistory.push({role:'assistant', content: reply.replace(/<[^>]+>/g,' ').trim().substring(0,500)});
+    lastExchange = {q, a:reply};
+    thinking.remove();
+    addMsg('bot', reply, true);
+  } catch(e) {
+    thinking.remove();
+    addMsg('bot','<span style="color:var(--danger)">Error conectando. Verificá la conexión.</span>');
+    conversationHistory.pop();
+  }
+
+  sendBtn.disabled=false;
+  inp.focus();
+}
+
+function ask(q) { inp.value=q; sendMsg(); }
+inp.addEventListener('keydown', e => { if (e.key==='Enter') sendMsg(); });
+
+// ==================== INIT ====================
+updateTrainCount();
+fetchTC();
+
+// Bienvenida
+(async () => {
+  await loadAll();
+  const totalTx = sheetData.transacciones.length;
+  const cuentasSaldo = sheetData.cuentas.filter(c=>parseFloat(c.saldo||0)!==0);
+  const chPend = sheetData.cheques.filter(c=>(c.estado||'').toLowerCase()!=='pago'&&(c.estado||'').toLowerCase()!=='cobrado');
+  const invActivos = sheetData.inversores.filter(i=>(i.estado||'').toLowerCase()!=='cancelado');
+  const totalDeuda = invActivos.reduce((s,i)=>s+parseFloat(i.deuda_actual||0),0);
+
+  addMsg('bot', `
+<p>¡Buenas! <strong>IMPROLUX v3.0</strong> — Sistema financiero completo. Todo en dólares, TC BROU automático.</p>
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-label">Movimientos</div>
+    <div class="kpi-value">${totalTx}</div>
+    <div class="kpi-sub">total histórico</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Cuentas con saldo</div>
+    <div class="kpi-value">${cuentasSaldo.length}</div>
+    <div class="kpi-sub">proveedores</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Cheques pendientes</div>
+    <div class="kpi-value">${chPend.length}</div>
+    <div class="kpi-sub">a cobrar/pagar</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Deuda inversores</div>
+    <div class="kpi-value">${fmt(totalDeuda)}</div>
+    <div class="kpi-sub">${invActivos.length} activos</div>
+  </div>
+</div>
+<p style="margin-top:8px;font-size:11px;color:var(--muted)">
+  💡 Podés decir: <em>"nuevo proveedor Fulano categoría alimentación"</em> · <em>"pago a Mercado Rural $500"</em> · <em>"nuevo inversor Juan $50000 tasa 8%"</em> · <em>"nuevo cheque emitido a BROU $2000 vence 15/04"</em>
+</p>
+`);
+})();
+</script>
+</body>
+</html>
