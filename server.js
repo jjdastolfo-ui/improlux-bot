@@ -1,4 +1,4 @@
-const express = require("express");
+onst express = require("express");
 const twilio = require("twilio");
 const Anthropic = require("@anthropic-ai/sdk");
 const Database = require("better-sqlite3");
@@ -198,7 +198,7 @@ HERRAMIENTAS — cuando sea una acción respondé SOLO con JSON exacto sin texto
 {"accion":"pago_proveedor","proveedor":"nombre","monto":0,"fecha":"YYYY-MM-DD"}
 {"accion":"nuevo_cheque","fecha_emision":"YYYY-MM-DD","fecha_cobro":"YYYY-MM-DD","tipo":"EMITIDO o RECIBIDO","proveedor":"nombre","monto":0,"banco":"BROU","concepto":""}
 {"accion":"marcar_cheque_cobrado","id":0}
-{"accion":"nuevo_inversor","inversor":"nombre","capital":0,"tasa":0.08,"fecha_ingreso":"YYYY-MM-DD","notas":""}
+{"accion":"nuevo_inversor","inversor":"nombre","capital":0,"tasa":0.08,"notas":""}
 {"accion":"anular_transaccion","id":0}
 {"accion":"ver_ultimos"}
 {"accion":"ver_cuentas"}
@@ -293,15 +293,15 @@ async function ejecutarAccion(accion) {
  
   // NUEVO INVERSOR
   if (accion.accion === "nuevo_inversor") {
-    const { inversor, capital, tasa, fecha_ingreso, notas } = accion;
+    const { inversor, capital, tasa, notas } = accion;
     if (!inversor || !capital) return "❌ Faltan datos del inversor.";
  
     db.prepare(`
       INSERT INTO inversores (inversor, fecha_ingreso, capital, tasa, deuda_actual, estado, notas)
       VALUES (?, ?, ?, ?, ?, 'ACTIVO', ?)
-    `).run(inversor, fecha_ingreso || hoy, parseFloat(capital), parseFloat(tasa) || 0.08, parseFloat(capital), notas || "");
+    `).run(inversor, hoy, parseFloat(capital), parseFloat(tasa) || 0.08, parseFloat(capital), notas || "");
  
-    return `✅ Inversor registrado!\n👤 ${inversor}\n💰 Capital: $${fmt(capital)} USD\n📈 Tasa: ${(parseFloat(tasa) * 100).toFixed(1)}% anual`;
+    return `✅ Inversor registrado!\n👤 ${inversor}\n💰 Capital: $${fmt(capital)} USD\n📈 Tasa: ${(parseFloat(tasa) * 100).toFixed(1)}% anual\n📅 Fecha ingreso: ${hoy}`;
   }
  
   // ANULAR TRANSACCIÓN
