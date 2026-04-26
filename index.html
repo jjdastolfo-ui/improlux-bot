@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMPROLUX — Gestión Financiera Ganadera | Uruguay</title>
+<meta name="description" content="IMPROLUX - Sistema de gestión financiera para empresas ganaderas en Uruguay. Control de flujo de caja, cuentas corrientes, inversores y reportes.">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --verde-oscuro: #1a3a1a;
+    --verde: #2d6a2e;
+    --verde-claro: #4a8f4b;
+    --crema: #f5f0e8;
+    --crema-oscuro: #e8e0d0;
+    --dorado: #c4a35a;
+    --texto: #2c2c2c;
+    --blanco: #ffffff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Source Sans 3', sans-serif;
+    color: var(--texto);
+    background: var(--crema);
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--verde-oscuro);
+    padding: 15px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.6rem;
+    color: var(--blanco);
+    letter-spacing: 3px;
+  }
+
+  .logo span {
+    color: var(--dorado);
+    font-size: 0.7em;
+    margin-left: 8px;
+    letter-spacing: 1px;
+    font-family: 'Source Sans 3', sans-serif;
+    font-weight: 300;
+  }
+
+  nav a {
+    color: var(--crema-oscuro);
+    text-decoration: none;
+    margin-left: 30px;
+    font-size: 0.9rem;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    transition: color 0.3s;
+  }
+
+  nav a:hover { color: var(--dorado); }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: linear-gradient(170deg, var(--verde-oscuro) 0%, var(--verde) 50%, var(--verde-claro) 100%);
+    position: relative;
+    padding: 0 20px;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    opacity: 0.5;
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    max-width: 700px;
+  }
+
+  .hero h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 4.5rem;
+    color: var(--blanco);
+    margin-bottom: 10px;
+    letter-spacing: 6px;
+    animation: fadeInUp 1s ease;
+  }
+
+  .hero .tagline {
+    font-size: 1.3rem;
+    color: var(--dorado);
+    font-weight: 300;
+    letter-spacing: 2px;
+    margin-bottom: 30px;
+    animation: fadeInUp 1s ease 0.2s both;
+  }
+
+  .hero p {
+    font-size: 1.1rem;
+    color: rgba(255,255,255,0.85);
+    line-height: 1.8;
+    font-weight: 300;
+    max-width: 550px;
+    margin: 0 auto 40px;
+    animation: fadeInUp 1s ease 0.4s both;
+  }
+
+  .hero-cta {
+    display: inline-block;
+    padding: 14px 40px;
+    background: var(--dorado);
+    color: var(--verde-oscuro);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border-radius: 2px;
+    transition: all 0.3s;
+    animation: fadeInUp 1s ease 0.6s both;
+  }
+
+  .hero-cta:hover {
+    background: var(--blanco);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+  }
+
+  /* ── SECCIÓN ── */
+  section {
+    padding: 100px 40px;
+  }
+
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.5rem;
+    color: var(--verde-oscuro);
+    text-align: center;
+    margin-bottom: 15px;
+  }
+
+  .section-subtitle {
+    text-align: center;
+    color: var(--verde);
+    font-weight: 300;
+    font-size: 1.1rem;
+    margin-bottom: 60px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── SERVICIOS ── */
+  .servicios-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 30px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .servicio-card {
+    background: var(--blanco);
+    padding: 40px 30px;
+    border-radius: 4px;
+    border-top: 3px solid var(--verde);
+    box-shadow: 0 2px 15px rgba(0,0,0,0.06);
+    transition: all 0.3s;
+  }
+
+  .servicio-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+    border-top-color: var(--dorado);
+  }
+
+  .servicio-icon {
+    font-size: 2.2rem;
+    margin-bottom: 20px;
+  }
+
+  .servicio-card h3 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.3rem;
+    color: var(--verde-oscuro);
+    margin-bottom: 12px;
+  }
+
+  .servicio-card p {
+    color: #666;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    font-weight: 300;
+  }
+
+  /* ── SOBRE ── */
+  .sobre {
+    background: var(--verde-oscuro);
+    color: var(--blanco);
+  }
+
+  .sobre .section-title { color: var(--blanco); }
+  .sobre .section-subtitle { color: var(--dorado); }
+
+  .sobre-content {
+    max-width: 800px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 50px;
+    align-items: center;
+  }
+
+  .sobre-text p {
+    font-size: 1rem;
+    line-height: 1.9;
+    font-weight: 300;
+    color: rgba(255,255,255,0.85);
+    margin-bottom: 15px;
+  }
+
+  .sobre-datos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .dato {
+    text-align: center;
+    padding: 25px 15px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+  }
+
+  .dato-numero {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.2rem;
+    color: var(--dorado);
+  }
+
+  .dato-label {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.6);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 5px;
+  }
+
+  /* ── CONTACTO ── */
+  .contacto-info {
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .contacto-info p {
+    font-size: 1.05rem;
+    line-height: 1.8;
+    color: #555;
+    font-weight: 300;
+    margin-bottom: 30px;
+  }
+
+  .contacto-datos {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 30px;
+  }
+
+  .contacto-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1rem;
+    color: var(--verde-oscuro);
+  }
+
+  .contacto-item span {
+    font-size: 1.3rem;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--verde-oscuro);
+    color: rgba(255,255,255,0.5);
+    text-align: center;
+    padding: 30px;
+    font-size: 0.85rem;
+    font-weight: 300;
+  }
+
+  footer strong {
+    color: var(--dorado);
+    font-weight: 600;
+  }
+
+  /* ── ANIMACIONES ── */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    header { padding: 12px 20px; }
+    .logo { font-size: 1.2rem; }
+    nav { display: none; }
+    .hero h1 { font-size: 2.8rem; letter-spacing: 3px; }
+    .hero .tagline { font-size: 1rem; }
+    section { padding: 60px 20px; }
+    .section-title { font-size: 2rem; }
+    .sobre-content { grid-template-columns: 1fr; gap: 30px; }
+    .contacto-datos { flex-direction: column; align-items: center; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">IMPROLUX <span>Gestión Ganadera</span></div>
+  <nav>
+    <a href="#servicios">Servicios</a>
+    <a href="#sobre">Nosotros</a>
+    <a href="#contacto">Contacto</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="hero-content">
+    <h1>IMPROLUX</h1>
+    <div class="tagline">Gestión Financiera Ganadera</div>
+    <p>Sistema integral de control financiero para empresas ganaderas en Uruguay. Flujo de caja, cuentas corrientes, inversores y reportes — todo en un solo lugar.</p>
+    <a href="#servicios" class="hero-cta">Conocé nuestros servicios</a>
+  </div>
+</section>
+
+<section id="servicios">
+  <h2 class="section-title">Nuestros Servicios</h2>
+  <p class="section-subtitle">Herramientas diseñadas para la gestión ganadera moderna</p>
+  <div class="servicios-grid">
+    <div class="servicio-card">
+      <div class="servicio-icon">💰</div>
+      <h3>Control de Flujo de Caja</h3>
+      <p>Registro y seguimiento de ingresos y egresos en tiempo real. Categorización automática de gastos por rubro ganadero con conversión de moneda integrada.</p>
+    </div>
+    <div class="servicio-card">
+      <div class="servicio-icon">📊</div>
+      <h3>Informes y Reportes</h3>
+      <p>Informes mensuales y anuales por ciclo ganadero (marzo a marzo). Reportes PDF descargables con presupuesto vs ejecución por categoría.</p>
+    </div>
+    <div class="servicio-card">
+      <div class="servicio-icon">🏦</div>
+      <h3>Cuentas Corrientes</h3>
+      <p>Gestión de saldos con proveedores. Control de deudas pendientes, pagos y movimientos internos con actualización automática de saldos.</p>
+    </div>
+    <div class="servicio-card">
+      <div class="servicio-icon">📋</div>
+      <h3>Cheques e Inversores</h3>
+      <p>Seguimiento de cheques emitidos y recibidos. Control de inversores activos con cálculo automático de intereses y deuda acumulada.</p>
+    </div>
+    <div class="servicio-card">
+      <div class="servicio-icon">📱</div>
+      <h3>Asistente WhatsApp</h3>
+      <p>Bot inteligente que permite registrar gastos, consultar saldos y generar informes directamente desde WhatsApp. Disponible las 24 horas.</p>
+    </div>
+    <div class="servicio-card">
+      <div class="servicio-icon">🐂</div>
+      <h3>Ganadería de Precisión</h3>
+      <p>Integración con Angus del Este para el manejo reproductivo, sanitario y de pesadas del rodeo Angus. Reportes INIA y Breedplan.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sobre" id="sobre">
+  <h2 class="section-title">Sobre IMPROLUX</h2>
+  <p class="section-subtitle">Tecnología al servicio del campo uruguayo</p>
+  <div class="sobre-content">
+    <div class="sobre-text">
+      <p>IMPROLUX nace de la necesidad real de una empresa ganadera uruguaya de controlar sus finanzas de forma simple, rápida y accesible desde cualquier lugar.</p>
+      <p>Desarrollamos herramientas digitales adaptadas a la realidad del campo — donde la conectividad es limitada y el tiempo es valioso. Nuestro sistema permite gestionar la operación financiera completa desde un celular.</p>
+      <p>Operamos desde Cerro Largo, Uruguay, con presencia en el departamento de Treinta y Tres a través de nuestra Cabaña Angus del Este.</p>
+    </div>
+    <div class="sobre-datos">
+      <div class="dato">
+        <div class="dato-numero">2+</div>
+        <div class="dato-label">Años operando</div>
+      </div>
+      <div class="dato">
+        <div class="dato-numero">1000+</div>
+        <div class="dato-label">Movimientos</div>
+      </div>
+      <div class="dato">
+        <div class="dato-numero">24/7</div>
+        <div class="dato-label">Disponible</div>
+      </div>
+      <div class="dato">
+        <div class="dato-numero">UY</div>
+        <div class="dato-label">Uruguay</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="contacto">
+  <h2 class="section-title">Contacto</h2>
+  <p class="section-subtitle">Estamos para ayudarte</p>
+  <div class="contacto-info">
+    <p>Si tenés consultas sobre nuestros servicios o querés implementar IMPROLUX en tu empresa ganadera, contactanos.</p>
+    <div class="contacto-datos">
+      <div class="contacto-item">
+        <span>📍</span> Cerro Largo, Uruguay
+      </div>
+      <div class="contacto-item">
+        <span>📱</span> +598 99 919 570
+      </div>
+      <div class="contacto-item">
+        <span>📧</span> jjdastolfo@gmail.com
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>&copy; 2026 <strong>IMPROLUX</strong> — Gestión Financiera Ganadera · Uruguay</p>
+</footer>
+
+</body>
+</html>
