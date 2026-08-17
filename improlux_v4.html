@@ -694,6 +694,12 @@ const TRAIN_KEY = 'improlux_v4_training';
 const FAV_KEY   = 'improlux_v4_favs';
 let tcHoy = null;
 let data = { transacciones:[], cuentas:[], cheques:[], inversores:[], resumen:{}, dividendos:{pablo:0,joni:0,total:0,historial:[],por_mes:{}}, lotes:[], ordenes:[], stock:[] };
+
+// Movimientos que salen de caja pero NO son gasto del negocio: distribución de
+// resultado y capital. Sumarlos infla el costo del ejercicio.
+const NO_OPERATIVOS = ['DIVIDENDOS','RETIRO SOCIOS','RETIRO DE SOCIOS',
+                       'APORTE SOCIOS','APORTE DE SOCIOS','DISTRIBUCION UTILIDADES'];
+const esOperativo = c => !NO_OPERATIVOS.includes(String(c||'').toUpperCase().trim());
 const fmt  = n => '$' + parseFloat(n||0).toLocaleString('es-UY',{minimumFractionDigits:0,maximumFractionDigits:0});
 const fmt2 = n => '$' + parseFloat(n||0).toLocaleString('es-UY',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmt1 = n => parseFloat(n||0).toLocaleString('es-UY',{minimumFractionDigits:0,maximumFractionDigits:1});
@@ -1100,7 +1106,7 @@ function renderDashboard(area) {
 
   // Categorías mes (donut)
   const porCat = {};
-  txMes.forEach(t => { if (t.egreso>0) porCat[t.concepto] = (porCat[t.concepto]||0)+parseFloat(t.egreso||0); });
+  txMes.forEach(t => { if (t.egreso>0 && esOperativo(t.concepto)) porCat[t.concepto] = (porCat[t.concepto]||0)+parseFloat(t.egreso||0); });
   const cats = Object.entries(porCat).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const totalCat = cats.reduce((s,[,v])=>s+v,0)||1;
   const catColors = ['#16a34a','#2563eb','#d97706','#dc2626','#8b5cf6'];
@@ -1863,7 +1869,10 @@ function renderFlujos(area) {
 
   // Categorías
   const porCat = {};
+  let retiros = 0;
   tx.forEach(t => {
+    // Los retiros se acumulan aparte, no como gasto.
+    if (!esOperativo(t.concepto)) { retiros += parseFloat(t.egreso||0); return; }
     if (!porCat[t.concepto]) porCat[t.concepto] = { egreso: 0, ingreso: 0 };
     porCat[t.concepto].egreso += parseFloat(t.egreso||0);
     porCat[t.concepto].ingreso += parseFloat(t.ingreso||0);
@@ -2015,6 +2024,8 @@ function renderFlujos(area) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="dash-card" style="padding:16px">
           <div style="font-size:12px;font-weight:600;margin-bottom:12px">Top egresos por categoría</div>
+          ${retiros > 0 ? `<div style="font-size:11px;color:var(--muted);margin:-6px 0 12px">
+            Además se retiraron ${fmt(retiros)} en dividendos — no cuentan como gasto del negocio.</div>` : ''}
           <div class="bar-chart">
             ${cats.filter(([,v]) => v.egreso > 0).slice(0,10).map(([cat,v]) => `
               <div class="bar-row">
