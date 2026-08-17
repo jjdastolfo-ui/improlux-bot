@@ -1311,7 +1311,7 @@ async function ejecutarAccion(accion) {
     const periodo = accion.periodo || new Date().toISOString().slice(0, 7);
     const rows = db.prepare(`
       SELECT concepto, SUM(egreso) as total_egreso, SUM(ingreso) as total_ingreso
-      FROM transacciones WHERE fecha LIKE ?
+      FROM transacciones WHERE fecha LIKE ? AND ${FILTRO_OPERATIVO}
       GROUP BY concepto ORDER BY total_egreso DESC
     `).all(`${periodo}-%`);
 
@@ -1332,7 +1332,7 @@ async function ejecutarAccion(accion) {
 
     const rows = db.prepare(`
       SELECT concepto, SUM(egreso) as total_egreso, SUM(ingreso) as total_ingreso
-      FROM transacciones WHERE fecha BETWEEN ? AND ?
+      FROM transacciones WHERE fecha BETWEEN ? AND ? AND ${FILTRO_OPERATIVO}
       GROUP BY concepto ORDER BY total_egreso DESC
     `).all(fecha_desde, fecha_hasta);
 
