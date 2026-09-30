@@ -405,22 +405,66 @@ const ADE_URL = (process.env.ADE_URL || "https://angus-del-este-production.up.ra
 // ── TIPO DE CAMBIO ────────────────────────────────────────────────────────────
 let tcCache = { valor: null, fecha: null };
 
+// Varias fuentes: si una se cae, el bot no puede quedarse sin cotización y
+// pedirle al usuario que convierta a mano. Se prueban en orden.
+const FUENTES_TC = [
+  { nombre: "er-api", url: "https://open.er-api.com/v6/latest/USD",
+    leer: d => d?.rates?.UYU },
+  { nombre: "frankfurter", url: "https://api.frankfurter.app/latest?from=USD&to=UYU",
+    leer: d => d?.rates?.UYU },
+  { nombre: "exchangerate", url: "https://api.exchangerate-api.com/v4/latest/USD",
+    leer: d => d?.rates?.UYU }
+];
+
 async function getTipoCambio() {
   const ahora = new Date();
   if (tcCache.valor && tcCache.fecha && (ahora - tcCache.fecha) < 60 * 60 * 1000) {
     return tcCache.valor;
   }
-  try {
-    const resp = await fetch("https://open.er-api.com/v6/latest/USD");
-    const data = await resp.json();
-    if (data?.rates?.UYU) {
-      tcCache = { valor: data.rates.UYU, fecha: ahora };
-      console.log(`TC obtenido: $${data.rates.UYU.toFixed(2)} UYU/USD`);
-      return data.rates.UYU;
+
+  for (const f of FUENTES_TC) {
+    try {
+      const ctrl = new AbortController();
+      const corte = setTimeout(() => ctrl.abort(), 6000);
+      const resp = await fetch(f.url, { signal: ctrl.signal });
+      clearTimeout(corte);
+      if (!resp.ok) continue;
+      const valor = f.leer(await resp.json());
+      // Un valor fuera de rango delata que la fuente devolvió otra cosa.
+      if (valor && valor > 20 && valor < 200) {
+        tcCache = { valor, fecha: ahora, fuente: f.nombre };
+        // Queda guardado por si después se caen todas.
+        try {
+          db.prepare(`INSERT INTO config (clave, valor) VALUES ('tc_ultimo', ?)
+            ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor`)
+            .run(JSON.stringify({ valor, fecha: ahora.toISOString(), fuente: f.nombre }));
+        } catch (e) {}
+        console.log(`TC ${f.nombre}: $${valor.toFixed(2)} UYU/USD`);
+        return valor;
+      }
+    } catch (e) {
+      console.warn(`TC ${f.nombre} falló: ${e.message}`);
     }
-  } catch (e) {
-    console.error("Error TC:", e.message);
   }
+
+  // Todas fallaron: mejor el último valor conocido que nada. Una cotización de
+  // ayer se equivoca por centavos; no tenerla frena la carga entera.
+  if (tcCache.valor) {
+    console.warn("TC: uso el último en memoria");
+    return tcCache.valor;
+  }
+  try {
+    const g = db.prepare("SELECT valor FROM config WHERE clave='tc_ultimo'").get();
+    if (g) {
+      const d = JSON.parse(g.valor);
+      const dias = Math.round((ahora - new Date(d.fecha)) / 86400000);
+      console.warn(`TC: uso el guardado de hace ${dias} día(s)`);
+      tcCache = { valor: d.valor, fecha: ahora, fuente: `${d.fuente} (guardado)` };
+      return d.valor;
+    }
+  } catch (e) {}
+
+  console.error("TC: no pude obtenerlo de ninguna fuente");
   return null;
 }
 
@@ -772,6 +816,13 @@ async function buildContexto() {
   return `Sos el asistente financiero de IMPROLUX, empresa ganadera uruguaya. Respondés en español rioplatense, claro y al grano (apto para WhatsApp, sin relleno).
 
 FECHA DE HOY: ${new Date().toISOString().slice(0,10)} — SIEMPRE usar esta fecha en los registros, nunca inventar fechas.
+
+MONEDA: la contabilidad va en DÓLARES. Si te dan un monto en pesos uruguayos — "gasoil 5000 pesos",
+"$5000", "5000 UYU" — convertilo vos con el TC de abajo y registrá el resultado en dólares. NO le
+pidas al usuario que haga la cuenta: para eso está el tipo de cambio en este mismo mensaje.
+Al confirmar decí las dos cifras, así queda claro: "Gasoil $5.000 UYU = US$ 125 (TC 40,00)".
+Si el TC dice "No disponible", registrá igual con el último que sepas y avisá que la cotización
+no está actualizada — es preferible a frenar la carga.
 MONEDA DEL SISTEMA: TODO EN DÓLARES AMERICANOS (USD).
 TC BROU HOY: ${tc ? `$${tc.toFixed(2)} UYU/USD` : "No disponible"}
 Si el usuario menciona pesos/UYU, convertir automáticamente y aclararlo.
