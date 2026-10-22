@@ -6,8 +6,8 @@ const PDFDocument = require("pdfkit");
 const path = require("path");
 const fs = require("fs");
 
-// Eventos del campo (lluvias, heladas, trabajos). Si faltara el archivo, el
-// server tiene que levantar igual, así que va envuelto.
+// Cheques de terceros y eventos del campo. Si faltara alguno, el server tiene
+// que levantar igual, así que van envueltos.
 let cheques = null;
 try { cheques = require("./cheques.js"); }
 catch (e) { console.log("⚠️  cheques.js no disponible:", e.message); }
@@ -19,6 +19,17 @@ catch (e) { console.log("⚠️  eventos.js no disponible:", e.message); }
 const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
+
+
+// ── CONCEPTOS NO OPERATIVOS ──────────────────────────────────────────────────
+// Movimientos que afectan la caja pero NO son gasto del negocio: distribución
+// de resultado y movimientos de capital. Sumarlos al gasto infla el costo del
+// ejercicio y distorsiona la comparación contra el presupuesto.
+const NO_OPERATIVOS = ['DIVIDENDOS', 'RETIRO SOCIOS', 'RETIRO DE SOCIOS',
+                       'APORTE SOCIOS', 'APORTE DE SOCIOS', 'DISTRIBUCION UTILIDADES'];
+const SQL_NO_OPERATIVOS = NO_OPERATIVOS.map(c => `'${c}'`).join(',');
+// Para usar en un WHERE: excluye los conceptos no operativos.
+const FILTRO_OPERATIVO = `upper(COALESCE(concepto,'')) NOT IN (${SQL_NO_OPERATIVOS})`;
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 app.use((req, res, next) => {
@@ -331,9 +342,9 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS diario_campo (
   detalle TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 )`); } catch(e) {}
-// Índices del diario, y la tabla por si alguna base todavía no la tiene.
 // La cartera de cheques: columnas nuevas sobre la tabla cheques que ya existe.
 try { if (cheques) cheques.init(db); } catch (e) { console.log("⚠️  cheques.init:", e.message); }
+// Índices del diario, y la tabla por si alguna base todavía no la tiene.
 try { if (eventos) eventos.init(db, "LA AMISTAD"); } catch (e) { console.log("⚠️  eventos.init:", e.message); }
 try { db.exec(`CREATE TABLE IF NOT EXISTS tareas_campo (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -408,22 +419,66 @@ const ADE_URL = (process.env.ADE_URL || "https://angus-del-este-production.up.ra
 // ── TIPO DE CAMBIO ────────────────────────────────────────────────────────────
 let tcCache = { valor: null, fecha: null };
 
+// Varias fuentes: si una se cae, el bot no puede quedarse sin cotización y
+// pedirle al usuario que convierta a mano. Se prueban en orden.
+const FUENTES_TC = [
+  { nombre: "er-api", url: "https://open.er-api.com/v6/latest/USD",
+    leer: d => d?.rates?.UYU },
+  { nombre: "frankfurter", url: "https://api.frankfurter.app/latest?from=USD&to=UYU",
+    leer: d => d?.rates?.UYU },
+  { nombre: "exchangerate", url: "https://api.exchangerate-api.com/v4/latest/USD",
+    leer: d => d?.rates?.UYU }
+];
+
 async function getTipoCambio() {
   const ahora = new Date();
   if (tcCache.valor && tcCache.fecha && (ahora - tcCache.fecha) < 60 * 60 * 1000) {
     return tcCache.valor;
   }
-  try {
-    const resp = await fetch("https://open.er-api.com/v6/latest/USD");
-    const data = await resp.json();
-    if (data?.rates?.UYU) {
-      tcCache = { valor: data.rates.UYU, fecha: ahora };
-      console.log(`TC obtenido: $${data.rates.UYU.toFixed(2)} UYU/USD`);
-      return data.rates.UYU;
+
+  for (const f of FUENTES_TC) {
+    try {
+      const ctrl = new AbortController();
+      const corte = setTimeout(() => ctrl.abort(), 6000);
+      const resp = await fetch(f.url, { signal: ctrl.signal });
+      clearTimeout(corte);
+      if (!resp.ok) continue;
+      const valor = f.leer(await resp.json());
+      // Un valor fuera de rango delata que la fuente devolvió otra cosa.
+      if (valor && valor > 20 && valor < 200) {
+        tcCache = { valor, fecha: ahora, fuente: f.nombre };
+        // Queda guardado por si después se caen todas.
+        try {
+          db.prepare(`INSERT INTO config (clave, valor) VALUES ('tc_ultimo', ?)
+            ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor`)
+            .run(JSON.stringify({ valor, fecha: ahora.toISOString(), fuente: f.nombre }));
+        } catch (e) {}
+        console.log(`TC ${f.nombre}: $${valor.toFixed(2)} UYU/USD`);
+        return valor;
+      }
+    } catch (e) {
+      console.warn(`TC ${f.nombre} falló: ${e.message}`);
     }
-  } catch (e) {
-    console.error("Error TC:", e.message);
   }
+
+  // Todas fallaron: mejor el último valor conocido que nada. Una cotización de
+  // ayer se equivoca por centavos; no tenerla frena la carga entera.
+  if (tcCache.valor) {
+    console.warn("TC: uso el último en memoria");
+    return tcCache.valor;
+  }
+  try {
+    const g = db.prepare("SELECT valor FROM config WHERE clave='tc_ultimo'").get();
+    if (g) {
+      const d = JSON.parse(g.valor);
+      const dias = Math.round((ahora - new Date(d.fecha)) / 86400000);
+      console.warn(`TC: uso el guardado de hace ${dias} día(s)`);
+      tcCache = { valor: d.valor, fecha: ahora, fuente: `${d.fuente} (guardado)` };
+      return d.valor;
+    }
+  } catch (e) {}
+
+  console.error("TC: no pude obtenerlo de ninguna fuente");
   return null;
 }
 
@@ -576,11 +631,11 @@ function getInformeCiclo(cicloStr, tipo = 'productivo') {
 
   const rows = db.prepare(`
     SELECT concepto, 
-           SUM(egreso) as total_egreso, 
+           SUM(egreso) as total_egreso,
            SUM(ingreso) as total_ingreso,
            COUNT(*) as cant_movimientos
-    FROM transacciones 
-    WHERE fecha >= ? AND fecha <= ?
+    FROM transacciones
+    WHERE fecha >= ? AND fecha <= ? AND ${FILTRO_OPERATIVO}
     GROUP BY concepto ORDER BY total_egreso DESC
   `).all(ciclo.fecha_desde, fechaHasta);
 
@@ -602,10 +657,10 @@ function getInformeMensual(anio, mes) {
   const periodo = `${anio}-${String(mes).padStart(2, '0')}`;
   const rows = db.prepare(`
     SELECT concepto, 
-           SUM(egreso) as total_egreso, 
+           SUM(egreso) as total_egreso,
            SUM(ingreso) as total_ingreso,
            COUNT(*) as cant
-    FROM transacciones WHERE fecha LIKE ?
+    FROM transacciones WHERE fecha LIKE ? AND ${FILTRO_OPERATIVO}
     GROUP BY concepto ORDER BY total_egreso DESC
   `).all(`${periodo}-%`);
 
@@ -695,11 +750,8 @@ const DB_SCHEMA = `Base SQLite de IMPROLUX. Montos en USD. El ciclo ganadero va 
   Pagos de un proveedor    = SUM(monto)  FROM cc_movimientos WHERE LOWER(proveedor)=LOWER(?)
   Saldo (deuda)            = compras - pagos
   Si al calcular la deuda de un proveedor te da que no hay pagos, casi seguro estás mirando transacciones en vez de cc_movimientos.
-- cheques(id, fecha_emision, fecha_cobro [=vencimiento], tipo 'EMITIDO'/'RECIBIDO', proveedor, monto, estado, banco, concepto, numero, es_electronico, librador, recibido_de, entregado_a, fecha_recepcion, fecha_endoso, fecha_acreditacion, kg_carne, concepto_cobro, concepto_pago, moneda, transaccion_cobro_id, transaccion_pago_id, cc_movimiento_id, motivo_rechazo, notas)
-  CARTERA DE CHEQUES DE TERCEROS: los recibidos tienen estado EN_CARTERA (o PENDIENTE, los viejos) mientras los tenemos en mano; después pasan a COBRADO (el banco los acreditó), ENDOSADO (se los dimos a un tercero) o RECHAZADO. Lo que está en cartera NO movió el flujo todavía.
-  Cheques en cartera = WHERE tipo='RECIBIDO' AND estado IN ('EN_CARTERA','PENDIENTE'). Vencidos sin cobrar = eso mismo AND fecha_cobro < date('now').
-  Un cheque ENDOSADO generó dos transacciones del mismo monto y fecha (transaccion_cobro_id y transaccion_pago_id): el cobro y el pago en el mismo acto, por eso no movió la caja.
-  Los kg_carne de una venta se reconocen cuando el cheque se cobra o se endosa, no cuando entra a cartera.
+- CARTERA DE CHEQUES DE TERCEROS: los recibidos quedan EN_CARTERA (o PENDIENTE, los viejos) mientras los tenemos en mano; después pasan a COBRADO, ENDOSADO o RECHAZADO. Lo que está en cartera NO movió el flujo. Un cheque ENDOSADO generó dos transacciones del mismo monto y fecha (el cobro y el pago en el mismo acto), por eso no movió la caja. Para anotar o mover un cheque de terceros usá recibir_cheque / cobrar_cheque / endosar_cheque, no escribas la tabla a mano.
+- cheques(id, fecha_emision, fecha_cobro, tipo 'EMITIDO'/'RECIBIDO', proveedor, monto, estado 'PENDIENTE'/'COBRADO', banco, concepto)
 - inversores(id, inversor, fecha_ingreso, capital, tasa, estado, notas)
 - dividendos(id, socio, monto, fecha, notas)
 - lotes(id, nombre, hectareas, ha_sembrables [=ha aprovechables que se siembran], notas)
@@ -708,7 +760,14 @@ const DB_SCHEMA = `Base SQLite de IMPROLUX. Montos en USD. El ciclo ganadero va 
 - stock_productos(id, nombre, categoria, unidad, cantidad [=stock actual], precio_unitario [=costo promedio])
 - stock_movimientos(id, producto_id, fecha, tipo 'ENTRADA'/'SALIDA'/'AJUSTE', cantidad, precio_unitario)
 - presupuestos(id, ciclo, concepto, monto_anual)
-- diario_campo(id, campo, fecha, tipo, mm, titulo, detalle). El registro pluviométrico y el diario del campo. tipo puede ser LLUVIA, HELADA, GRANIZO, VIENTO, SECA, TRABAJO, PASTURA, SANIDAD, VISITA, PROBLEMA o ACONTECIMIENTO. Las lluvias son las filas con tipo='LLUVIA' y los milímetros están en mm. Para ANOTAR un evento del campo usá la herramienta anotar_evento, no intentes escribir acá (consultar_datos es solo lectura). Para acumulados usá SUM(mm) filtrando por fecha (ej: lo que va del mes = WHERE tipo='LLUVIA' AND substr(fecha,1,7)='2026-08'). SIEMPRE respondé las preguntas de lluvia consultando esta tabla; nunca digas que no manejás datos de lluvia.
+
+GASTO OPERATIVO vs NO OPERATIVO: los conceptos DIVIDENDOS, RETIRO SOCIOS y APORTE
+SOCIOS son distribución de resultado o movimientos de capital: afectan la caja pero
+NO son gasto del negocio. Al informar gastos, costos del ejercicio o comparar contra
+el presupuesto, EXCLUÍLOS. Si te preguntan por el flujo de caja o el saldo, ahí sí
+van incluidos. Cuando muestres un total de gastos, podés aclarar aparte cuánto se
+retiró en dividendos.
+- diario_campo(id, campo, fecha, tipo 'LLUVIA'/'ACONTECIMIENTO', mm, titulo, detalle). El registro pluviométrico y el diario del campo: las lluvias son las filas con tipo='LLUVIA' y los milímetros están en mm. Para acumulados usá SUM(mm) filtrando por fecha (ej: lo que va del mes = WHERE tipo='LLUVIA' AND substr(fecha,1,7)='2026-08'). SIEMPRE respondé las preguntas de lluvia consultando esta tabla; nunca digas que no manejás datos de lluvia.
 - tareas_campo(id, campo, texto, estado 'PENDIENTE'/'HECHA', fecha)
 Insumos faltantes de un año = por cada orden_items con tipo='INSUMO', ejecutado=0 y producto_id, sumar cantidad por producto y restar stock_productos.cantidad.`;
 
@@ -749,9 +808,9 @@ async function buildContexto() {
   // Resumen de egresos del mes actual
   const mesActual = new Date().toISOString().slice(0, 7);
   const egresosMes = db.prepare(`
-    SELECT concepto, SUM(egreso) as total 
-    FROM transacciones 
-    WHERE fecha LIKE ? AND egreso > 0
+    SELECT concepto, SUM(egreso) as total
+    FROM transacciones
+    WHERE fecha LIKE ? AND egreso > 0 AND ${FILTRO_OPERATIVO}
     GROUP BY concepto ORDER BY total DESC LIMIT 10
   `).all(`${mesActual}-%`);
 
@@ -765,24 +824,6 @@ async function buildContexto() {
   // ── STOCK, LOTES, ÓRDENES (resumen liviano; el detalle lo consulta el bot con la herramienta) ──
   const stock = db.prepare("SELECT nombre, categoria, unidad, cantidad, precio_unitario FROM stock_productos ORDER BY categoria, nombre").all();
   const lotes = db.prepare("SELECT nombre, hectareas, ha_sembrables FROM lotes ORDER BY nombre").all();
-
-  // ── EVENTOS DEL CAMPO: cómo viene la lluvia, para tenerlo a mano sin consultar ──
-  let eventosCtx = "";
-  if (eventos) {
-    try {
-      const ev = eventos.resumen(db, { campo: "LA AMISTAD" });
-      const ult = ev.lluvia.ultima;
-      eventosCtx = [
-        eventos.INSTRUCCIONES,
-        "",
-        `LLUVIA EN LA AMISTAD: ${ev.lluvia.mes} mm este mes (${ev.lluvia.dias_mes} día/s) · ${ev.lluvia.anio} mm en el año.`,
-        ult ? `Última lluvia: ${ult.mm} mm el ${ult.fecha} (hace ${ult.hace_dias} días).` : "Todavía no hay lluvias anotadas.",
-        ev.lluvia.alerta_seca ? `ATENCIÓN: ${ev.lluvia.alerta_seca}.` : "",
-        ev.por_mes.length ? `Por mes: ${ev.por_mes.map(m => `${m.mes} ${m.mm}mm`).join(" · ")}` : "",
-        ev.ultimos.length ? `Últimos registros del diario: ${ev.ultimos.map(r => `${r.fecha} ${r.tipo}${r.mm != null ? " " + r.mm + "mm" : ""}`).join(" · ")}` : ""
-      ].filter(Boolean).join("\n");
-    } catch (e) { eventosCtx = eventos.INSTRUCCIONES; }
-  }
   const ordenesCtx = db.prepare("SELECT numero, anio, lote, titulo, estado, hectareas, total_planificado, total_ejecutado FROM ordenes_trabajo ORDER BY anio DESC, numero DESC").all()
     .map(o => ({ num: `${o.numero}/${o.anio}`, lote: o.lote, titulo: o.titulo, estado: o.estado, ha: o.hectareas, plan: Math.round(o.total_planificado || 0), ejec: Math.round(o.total_ejecutado || 0) }));
 
@@ -790,13 +831,31 @@ async function buildContexto() {
   return `Sos el asistente financiero de IMPROLUX, empresa ganadera uruguaya. Respondés en español rioplatense, claro y al grano (apto para WhatsApp, sin relleno).
 
 FECHA DE HOY: ${new Date().toISOString().slice(0,10)} — SIEMPRE usar esta fecha en los registros, nunca inventar fechas.
+
+MONEDA: la contabilidad va en DÓLARES. Si te dan un monto en pesos uruguayos — "gasoil 5000 pesos",
+"$5000", "5000 UYU" — convertilo vos con el TC de abajo y registrá el resultado en dólares. NO le
+pidas al usuario que haga la cuenta: para eso está el tipo de cambio en este mismo mensaje.
+Al confirmar decí las dos cifras, así queda claro: "Gasoil $5.000 UYU = US$ 125 (TC 40,00)".
+Si el TC dice "No disponible", registrá igual con el último que sepas y avisá que la cotización
+no está actualizada — es preferible a frenar la carga.
 MONEDA DEL SISTEMA: TODO EN DÓLARES AMERICANOS (USD).
 TC BROU HOY: ${tc ? `$${tc.toFixed(2)} UYU/USD` : "No disponible"}
 Si el usuario menciona pesos/UYU, convertir automáticamente y aclararlo.
 
 CATEGORÍAS DE GASTO: ${CATEGORIAS.join(", ")}
 
-${eventosCtx}
+${(() => {
+  if (!eventos) return "";
+  try {
+    const ev = eventos.resumen(db, { campo: "LA AMISTAD" });
+    const u = ev.lluvia.ultima;
+    return [ eventos.INSTRUCCIONES, "",
+      `LLUVIA EN LA AMISTAD: ${ev.lluvia.mes} mm este mes · ${ev.lluvia.anio} mm en el año.`,
+      u ? `Última lluvia: ${u.mm} mm el ${u.fecha} (hace ${u.hace_dias} días).` : "Todavía no hay lluvias anotadas.",
+      ev.lluvia.alerta_seca ? `ATENCIÓN: ${ev.lluvia.alerta_seca}.` : ""
+    ].filter(Boolean).join("\n");
+  } catch (e) { return eventos.INSTRUCCIONES; }
+})()}
 
 HERRAMIENTAS — cuando sea una acción respondé SOLO con JSON exacto sin texto extra, sin markdown, sin bloques de código. NUNCA muestres el JSON al usuario — es solo para uso interno del sistema:
 {"accion":"registrar_transaccion","fecha":"YYYY-MM-DD","concepto":"CATEGORIA","detalle":"descripción","ingreso":0,"egreso":0,"proveedor":"nombre o vacío","tc":${tc || 0}}
@@ -807,7 +866,7 @@ HERRAMIENTAS — cuando sea una acción respondé SOLO con JSON exacto sin texto
 {"accion":"pago_proveedor","proveedor":"nombre","monto":0,"fecha":"YYYY-MM-DD"}
 ${cheques ? cheques.ACCIONES : ""}
 ${eventos && eventos.ACCIONES ? eventos.ACCIONES : ""}
-// nuevo_cheque es para cheques PROPIOS que emitimos. Para los cheques de terceros que nos dan y después endosamos, usar las acciones de arriba.
+// nuevo_cheque es para cheques PROPIOS que emitimos. Para los de terceros que nos dan y después endosamos, usar las acciones de arriba.
 {"accion":"nuevo_cheque","fecha_emision":"YYYY-MM-DD","fecha_cobro":"YYYY-MM-DD","tipo":"EMITIDO o RECIBIDO","proveedor":"nombre","monto":0,"banco":"BROU","concepto":""}
 {"accion":"marcar_cheque_cobrado","id":0}
 {"accion":"nuevo_inversor","inversor":"nombre","capital":0,"tasa":0.08,"notas":""}
@@ -1122,19 +1181,17 @@ function getStockValorizado(campo) {
 
 // ── EJECUTAR ACCIÓN ───────────────────────────────────────────────────────────
 async function ejecutarAccion(accion) {
-  const hoy = new Date().toISOString().split("T")[0];
-
-  // Eventos del campo como acción, para que entren también desde RODEO.
+  // Eventos del campo y cheques de terceros. Devuelven null si la acción no es
+  // suya, y sigue el resto.
   if (eventos && eventos.MANEJA && eventos.MANEJA.includes(accion.accion)) {
-    const r = eventos.ejecutarAccion(db, accion, { campo: "LA AMISTAD" });
-    if (r != null) return r;
+    const _r = eventos.ejecutarAccion(db, accion, { campo: "LA AMISTAD" });
+    if (_r != null) return _r;
   }
-
-  // Cheques de terceros. Devuelve null si la acción no es suya y sigue el resto.
   if (cheques && cheques.MANEJA.includes(accion.accion)) {
-    const r = cheques.ejecutarAccion(db, accion, { moneda: "USD" });
-    if (r != null) return r;
+    const _r = cheques.ejecutarAccion(db, accion, { moneda: "USD" });
+    if (_r != null) return _r;
   }
+  const hoy = new Date().toISOString().split("T")[0];
   const tc = await getTipoCambio();
 
   // REGISTRAR TRANSACCIÓN
@@ -1346,7 +1403,7 @@ async function ejecutarAccion(accion) {
     const periodo = accion.periodo || new Date().toISOString().slice(0, 7);
     const rows = db.prepare(`
       SELECT concepto, SUM(egreso) as total_egreso, SUM(ingreso) as total_ingreso
-      FROM transacciones WHERE fecha LIKE ?
+      FROM transacciones WHERE fecha LIKE ? AND ${FILTRO_OPERATIVO}
       GROUP BY concepto ORDER BY total_egreso DESC
     `).all(`${periodo}-%`);
 
@@ -1367,7 +1424,7 @@ async function ejecutarAccion(accion) {
 
     const rows = db.prepare(`
       SELECT concepto, SUM(egreso) as total_egreso, SUM(ingreso) as total_ingreso
-      FROM transacciones WHERE fecha BETWEEN ? AND ?
+      FROM transacciones WHERE fecha BETWEEN ? AND ? AND ${FILTRO_OPERATIVO}
       GROUP BY concepto ORDER BY total_egreso DESC
     `).all(fecha_desde, fecha_hasta);
 
@@ -1959,10 +2016,6 @@ Respondé *SI* para confirmar o corregí lo que necesites.`;
 
 // Ejecutar una acción ya parseada (usado por el chat de la app web)
 // ── LECTURA LIBRE, PARA EL BOT DE RODEO ──────────────────────────────────────
-// El bot de acá tiene consultar_datos: SQL abierto de sólo lectura sobre esta
-// base. RODEO tenía un menú fijo de cinco consultas y quedaba adivinando. Esta
-// es la misma puerta, abierta hacia afuera: sin sql devuelve el esquema y las
-// categorías, con sql corre el SELECT. Las guardas son las de consultarDB.
 app.post("/api/consultar", (req, res) => {
   try {
     const sql = req.body && (req.body.sql || (req.body.accion && req.body.accion.sql));
@@ -3683,6 +3736,28 @@ app.post("/api/stock/compra", (req, res) => {
 });
 
 // LISTA de productos de stock (para que ADE elija al aplicar sanidad)
+
+// Los retiros y aportes de socios se informan aparte del gasto operativo.
+function movimientosNoOperativos(desde, hasta) {
+  const filas = db.prepare(`
+    SELECT concepto, SUM(egreso) AS egreso, SUM(ingreso) AS ingreso, COUNT(*) AS n
+    FROM transacciones
+    WHERE fecha >= ? AND fecha <= ? AND upper(COALESCE(concepto,'')) IN (${SQL_NO_OPERATIVOS})
+    GROUP BY concepto ORDER BY egreso DESC`).all(desde, hasta);
+  return {
+    detalle: filas,
+    retirado: filas.reduce((a, f) => a + (f.egreso || 0), 0),
+    aportado: filas.reduce((a, f) => a + (f.ingreso || 0), 0)
+  };
+}
+
+app.get("/api/no-operativos", (req, res) => {
+  const desde = req.query.desde || `${new Date().getFullYear()}-01-01`;
+  const hasta = req.query.hasta || new Date().toISOString().slice(0, 10);
+  try { res.json(movimientosNoOperativos(desde, hasta)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get("/api/stock/lista", (req, res) => {
   const campo = req.query.campo;
   const rubro = req.query.rubro;
