@@ -1527,6 +1527,7 @@ function renderCheques(area) {
           ${chBtn('Cobrar',  'chCobrar('  + c.id + ')', 'var(--green)')}
           ${chBtn('Endosar', 'chEndosar(' + c.id + ')', 'var(--blue)')}
           ${chBtn('Rebotó',  'chRechazar('+ c.id + ')', 'var(--red)')}
+          ${chBtn('✕', 'chBorrar(' + c.id + ')', 'var(--muted2)')}
         </div>
       </div>`;
   };
@@ -1598,7 +1599,7 @@ function renderCheques(area) {
               <td>${c.fecha_cobro || '—'}</td>
               <td><span class="tag ${chColor(c.estado)}">${chTexto(c.estado)}</span></td>
               <td style="font-size:11px;color:var(--muted)">${c.entregado_a ? '→ ' + c.entregado_a : c.estado === 'RECHAZADO' && c.motivo_rechazo ? c.motivo_rechazo : c.fecha_acreditacion ? 'acreditado ' + c.fecha_acreditacion : '—'}</td>
-              <td>${!CH_EN_MANO.includes(c.estado) ? chBtn('Deshacer', 'chDeshacer(' + c.id + ')', 'var(--muted2)') : chBtn('Editar', 'chEditar(' + c.id + ')', 'var(--muted2)')}</td>
+              <td style="white-space:nowrap">${!CH_EN_MANO.includes(c.estado) ? chBtn('Deshacer', 'chDeshacer(' + c.id + ')', 'var(--muted2)') : chBtn('Editar', 'chEditar(' + c.id + ')', 'var(--muted2)')} ${chBtn('✕', 'chBorrar(' + c.id + ')', 'var(--red)')}</td>
             </tr>`).join('') : '<tr><td colspan="8" style="color:var(--muted)">Sin cheques cargados</td></tr>'}
           </tbody>
         </table>
@@ -1688,6 +1689,20 @@ async function chEditar(id) {
   }
   if (!hubo) return;
   await chAccion(cambios);
+}
+
+
+// Borrar del todo. Si el cheque ya se movió, se lleva puestos los movimientos
+// que generó, así que se avisa aparte.
+async function chBorrar(id) {
+  const c = chBuscar(id);
+  const enMano = CH_EN_MANO.includes(c.estado);
+  const quien = c.recibido_de || c.proveedor || '—';
+  const aviso = enMano
+    ? 'Sale de la cartera y no deja rastro.'
+    : `Está ${chTexto(c.estado)}: se dan de baja TAMBIÉN el cobro, el pago y el descuento de cuenta corriente que haya generado.\n\nSi sólo te equivocaste al moverlo, cancelá y usá Deshacer en vez de borrar.`;
+  if (!confirm(`¿Borrar el cheque de ${quien}?\n\n${c.numero ? c.numero + ' · ' : ''}${fmt2(c.monto)}\n\n${aviso}\n\nEsto no se puede deshacer.`)) return;
+  await chAccion({ accion: 'borrar_cheque', cheque: id, forzar: !enMano });
 }
 
 async function chMarcarCobrado(id) {
