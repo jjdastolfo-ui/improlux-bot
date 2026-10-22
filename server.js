@@ -1958,6 +1958,33 @@ Respondé *SI* para confirmar o corregí lo que necesites.`;
 }
 
 // Ejecutar una acción ya parseada (usado por el chat de la app web)
+// ── LECTURA LIBRE, PARA EL BOT DE RODEO ──────────────────────────────────────
+// El bot de acá tiene consultar_datos: SQL abierto de sólo lectura sobre esta
+// base. RODEO tenía un menú fijo de cinco consultas y quedaba adivinando. Esta
+// es la misma puerta, abierta hacia afuera: sin sql devuelve el esquema y las
+// categorías, con sql corre el SELECT. Las guardas son las de consultarDB.
+app.post("/api/consultar", (req, res) => {
+  try {
+    const sql = req.body && (req.body.sql || (req.body.accion && req.body.accion.sql));
+    if (!sql) return res.json({ esquema: DB_SCHEMA, categorias: CATEGORIAS, hoy: new Date().toISOString().slice(0,10) });
+    const salida = consultarDB({ sql });
+    const datos = typeof salida === "string" ? JSON.parse(salida) : salida;
+    if (datos && datos.error) return res.status(400).json(datos);
+    res.json(datos);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get("/api/consultar", (req, res) => {
+  if (req.query.sql) {
+    try {
+      const salida = consultarDB({ sql: req.query.sql });
+      const datos = typeof salida === "string" ? JSON.parse(salida) : salida;
+      if (datos && datos.error) return res.status(400).json(datos);
+      return res.json(datos);
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+  res.json({ esquema: DB_SCHEMA, categorias: CATEGORIAS, hoy: new Date().toISOString().slice(0,10) });
+});
+
 app.post("/api/ejecutar-accion", async (req, res) => {
   try {
     const accion = req.body.accion || req.body;
