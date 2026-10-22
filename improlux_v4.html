@@ -1588,7 +1588,7 @@ function renderCheques(area) {
       <div class="dash-card">
         <h3>Historial completo</h3>
         <table class="data-table">
-          <thead><tr><th></th><th>N°</th><th>De / Para</th><th>Monto</th><th>Vence</th><th>Estado</th><th>Destino</th></tr></thead>
+          <thead><tr><th></th><th>N°</th><th>De / Para</th><th>Monto</th><th>Vence</th><th>Estado</th><th>Destino</th><th></th></tr></thead>
           <tbody>
             ${todos.length ? todos.map(c => `<tr>
               <td>${c.tipo === 'EMITIDO' ? '📤' : '📥'}</td>
@@ -1598,7 +1598,8 @@ function renderCheques(area) {
               <td>${c.fecha_cobro || '—'}</td>
               <td><span class="tag ${chColor(c.estado)}">${chTexto(c.estado)}</span></td>
               <td style="font-size:11px;color:var(--muted)">${c.entregado_a ? '→ ' + c.entregado_a : c.estado === 'RECHAZADO' && c.motivo_rechazo ? c.motivo_rechazo : c.fecha_acreditacion ? 'acreditado ' + c.fecha_acreditacion : '—'}</td>
-            </tr>`).join('') : '<tr><td colspan="7" style="color:var(--muted)">Sin cheques cargados</td></tr>'}
+              <td>${!CH_EN_MANO.includes(c.estado) ? chBtn('Deshacer', 'chDeshacer(' + c.id + ')', 'var(--muted2)') : chBtn('Editar', 'chEditar(' + c.id + ')', 'var(--muted2)')}</td>
+            </tr>`).join('') : '<tr><td colspan="8" style="color:var(--muted)">Sin cheques cargados</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1658,6 +1659,35 @@ async function chRechazar(id) {
   const motivo = prompt(`¿Por qué rebotó?\n\n${fmt2(c.monto)} de ${c.recibido_de || c.proveedor || '—'}\n\nSe dan de baja el ingreso y el pago que había generado${c.entregado_a ? `, y la deuda con ${c.entregado_a} vuelve a quedar abierta` : ''}.`, 'sin fondos');
   if (motivo === null) return;
   await chAccion({ accion: 'rechazar_cheque', cheque: id, motivo: motivo.trim() || undefined });
+}
+
+
+// Volver atrás una carga mal hecha. Distinto de "rebotó": acá el cheque vuelve
+// a cartera como si nunca se hubiera movido.
+async function chDeshacer(id) {
+  const c = chBuscar(id);
+  if (!confirm(`¿Volver este cheque a cartera?\n\nEstá ${(c.estado||'').toLowerCase().replace('_',' ')}${c.entregado_a ? ' a ' + c.entregado_a : ''}.\n\nSe dan de baja el cobro, el pago y el descuento de cuenta corriente que haya generado. La deuda vuelve a quedar abierta.`)) return;
+  await chAccion({ accion: 'deshacer_cheque', cheque: id });
+}
+
+async function chEditar(id) {
+  const c = chBuscar(id);
+  const campos = [
+    ['monto', 'Monto', c.monto],
+    ['numero', 'N° de cheque', c.numero || ''],
+    ['recibido_de', 'Quién lo dio', c.recibido_de || c.proveedor || ''],
+    ['fecha_cobro', 'Vence (AAAA-MM-DD)', c.fecha_cobro || ''],
+    ['banco', 'Banco', c.banco || '']
+  ];
+  const cambios = { accion: 'editar_cheque', cheque: id };
+  let hubo = false;
+  for (const [k, etiqueta, actual] of campos) {
+    const v = prompt(`${etiqueta}:`, actual);
+    if (v === null) return;
+    if (String(v) !== String(actual)) { cambios[k] = k === 'monto' ? parseFloat(v) : v; hubo = true; }
+  }
+  if (!hubo) return;
+  await chAccion(cambios);
 }
 
 async function chMarcarCobrado(id) {
