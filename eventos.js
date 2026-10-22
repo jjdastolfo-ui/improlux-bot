@@ -249,6 +249,46 @@ function ejecutarTool(db, input, extra = {}) {
 }
 
 // Lo que se le dice al bot para que sepa que esto existe.
+// ── Las mismas cosas, como acciones ──────────────────────────────────────────
+// La herramienta de arriba sólo la ve el bot del financiero. Como acción entra
+// también desde RODEO, que manda acciones por /api/ejecutar-accion.
+const MANEJA = ["anotar_evento", "ver_eventos"];
+
+function ejecutarAccion(db, accion = {}, ctx = {}) {
+  try {
+    switch (String(accion.accion || "")) {
+      case "anotar_evento": {
+        const r = registrar(db, accion.texto, {
+          tipo: accion.tipo, mm: accion.mm, fecha: accion.fecha,
+          lugar: accion.lugar, forzar: accion.forzar, campo: ctx.campo
+        });
+        return r.ok ? r.mensaje : `❌ ${r.error}`;
+      }
+      case "ver_eventos": {
+        const r = resumen(db, { campo: ctx.campo, ...accion });
+        const u = r.lluvia.ultima;
+        return [
+          `🌧️ Lluvia: ${r.lluvia.mes} mm este mes (${r.lluvia.dias_mes} día/s) · ${r.lluvia.anio} mm en el año.`,
+          u ? `Última: ${u.mm} mm el ${u.fecha} (hace ${u.hace_dias} días).` : "Todavía no hay lluvias anotadas.",
+          r.lluvia.alerta_seca ? `⚠️ ${r.lluvia.alerta_seca}.` : null,
+          r.por_mes.length ? `Por mes: ${r.por_mes.map(m => `${m.mes} ${m.mm}mm`).join(" · ")}` : null,
+          r.ultimos.length ? "\nÚltimo del diario:\n" + r.ultimos.slice(0, 8).map(x =>
+            `  ${x.fecha} ${x.tipo}${x.mm != null ? " " + x.mm + "mm" : ""} · ${x.detalle || x.titulo || ""}`).join("\n") : null
+        ].filter(Boolean).join("\n");
+      }
+      default: return null;   // no es nuestra
+    }
+  } catch (e) {
+    return `❌ Error con el evento: ${String(e.message).slice(0, 180)}`;
+  }
+}
+
+const ACCIONES = `EVENTOS DEL CAMPO — lo que le pasa al campo y no a un animal. Van al diario del campo, el mismo que muestra el tablero.
+{"accion":"anotar_evento","texto":"lo que pasó, en palabras del usuario","tipo":"LLUVIA|HELADA|GRANIZO|VIENTO|SECA|TRABAJO|PASTURA|SANIDAD|VISITA|PROBLEMA|ACONTECIMIENTO","mm":0,"fecha":"YYYY-MM-DD","lugar":"potrero, si lo nombraron"}
+// Para "llovió 40 mm", "heló anoche", "sembramos el potrero 3", "se cortó el alambre del fondo". El tipo y los milímetros se deducen del texto si no los mandás. La lluvia se acumula y la respuesta dice cuánto va en el mes.
+{"accion":"ver_eventos"}
+// Cuánto llovió en el mes y en el año, cuándo fue la última lluvia, y lo último del diario.`;
+
 const INSTRUCCIONES = `EVENTOS DEL CAMPO: lo que le pasa al campo y no a un animal — lluvias, heladas, granizo, viento, seca, trabajos, pasturas, sanidad, visitas, problemas. Se anotan con la herramienta anotar_evento y quedan en diario_campo, la misma tabla que muestra el tablero.
 
 Si te cuentan algo del campo — "llovió 40 mm", "heló anoche", "sembramos el potrero 3", "se cortó el alambre del fondo" — anotalo. No digas que no tenés acceso a eso ni que no manejás datos de lluvia.
@@ -257,5 +297,5 @@ Si te PREGUNTAN cuánto llovió, no anotes nada: consultá diario_campo sumando 
 
 module.exports = {
   init, registrar, acumulado, lluviaPorMes, listar, borrar, resumen,
-  interpretar, leerMm, ejecutarTool, TIPOS, TOOL, INSTRUCCIONES
+  interpretar, leerMm, ejecutarTool, ejecutarAccion, MANEJA, TIPOS, TOOL, ACCIONES, INSTRUCCIONES
 };
