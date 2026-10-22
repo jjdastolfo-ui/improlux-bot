@@ -806,6 +806,7 @@ HERRAMIENTAS — cuando sea una acción respondé SOLO con JSON exacto sin texto
 {"accion":"nuevo_proveedor","proveedor":"nombre","notas":""}
 {"accion":"pago_proveedor","proveedor":"nombre","monto":0,"fecha":"YYYY-MM-DD"}
 ${cheques ? cheques.ACCIONES : ""}
+${eventos && eventos.ACCIONES ? eventos.ACCIONES : ""}
 // nuevo_cheque es para cheques PROPIOS que emitimos. Para los cheques de terceros que nos dan y después endosamos, usar las acciones de arriba.
 {"accion":"nuevo_cheque","fecha_emision":"YYYY-MM-DD","fecha_cobro":"YYYY-MM-DD","tipo":"EMITIDO o RECIBIDO","proveedor":"nombre","monto":0,"banco":"BROU","concepto":""}
 {"accion":"marcar_cheque_cobrado","id":0}
@@ -1122,6 +1123,12 @@ function getStockValorizado(campo) {
 // ── EJECUTAR ACCIÓN ───────────────────────────────────────────────────────────
 async function ejecutarAccion(accion) {
   const hoy = new Date().toISOString().split("T")[0];
+
+  // Eventos del campo como acción, para que entren también desde RODEO.
+  if (eventos && eventos.MANEJA && eventos.MANEJA.includes(accion.accion)) {
+    const r = eventos.ejecutarAccion(db, accion, { campo: "LA AMISTAD" });
+    if (r != null) return r;
+  }
 
   // Cheques de terceros. Devuelve null si la acción no es suya y sigue el resto.
   if (cheques && cheques.MANEJA.includes(accion.accion)) {
